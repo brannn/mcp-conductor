@@ -1,0 +1,12 @@
+# Kustomization for CRD installation
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- bases/mcp.io_agents.yaml
+- bases/mcp.io_tasks.yaml
+
+# Add common labels
+commonLabels:
+  app: mcp-conductor
+  component: crd

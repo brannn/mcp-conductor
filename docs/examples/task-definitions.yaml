@@ -1,0 +1,119 @@
+# Example task definitions for different domains
+# These are templates showing how to structure tasks for various use cases
+# Note: These require corresponding agent implementations to function
+
+---
+apiVersion: mcp.io/v1
+kind: Task
+metadata:
+  name: transform-customer-data
+  namespace: default
+  labels:
+    app: mcp-conductor
+    component: task
+    domain: data-processing
+spec:
+  domain: "data-processing"
+  requiredCapabilities:
+    - "csv-transform"
+  priority: 7
+  payload:
+    raw: |
+      {
+        "source": "s3://data-bucket/customers.csv",
+        "destination": "s3://processed-bucket/customers_clean.json",
+        "transformations": [
+          {"field": "email", "operation": "lowercase"},
+          {"field": "phone", "operation": "normalize"},
+          {"field": "created_at", "operation": "parse_date"}
+        ]
+      }
+  deadline: "2024-12-31T23:59:59Z"
+  timeout: "300s"
+  retryPolicy:
+    maxRetries: 3
+    backoffStrategy: "exponential"
+    initialDelay: "5s"
+    maxDelay: "60s"
+  requiredTags:
+    - "data-processing"
+  preferredTags:
+    - "high-memory"
+
+---
+apiVersion: mcp.io/v1
+kind: Task
+metadata:
+  name: backup-config-files
+  namespace: default
+  labels:
+    app: mcp-conductor
+    component: task
+    domain: infrastructure
+spec:
+  domain: "infrastructure"
+  requiredCapabilities:
+    - "file-read"
+    - "file-write"
+  priority: 3
+  payload:
+    raw: |
+      {
+        "source_directory": "/etc/app/config",
+        "backup_location": "/backup/config-$(date +%Y%m%d)",
+        "compression": "gzip",
+        "exclude_patterns": ["*.tmp", "*.log"]
+      }
+  timeout: "120s"
+  retryPolicy:
+    maxRetries: 2
+    backoffStrategy: "linear"
+    initialDelay: "10s"
+    maxDelay: "30s"
+  requiredTags:
+    - "infrastructure"
+  preferredTags:
+    - "storage-optimized"
+
+---
+apiVersion: mcp.io/v1
+kind: Task
+metadata:
+  name: notify-webhook
+  namespace: default
+  labels:
+    app: mcp-conductor
+    component: task
+    domain: integration
+spec:
+  domain: "integration"
+  requiredCapabilities:
+    - "webhook-call"
+  priority: 9
+  payload:
+    raw: |
+      {
+        "url": "https://api.example.com/webhooks/process-complete",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer ${WEBHOOK_TOKEN}"
+        },
+        "body": {
+          "event": "data_processing_complete",
+          "task_id": "transform-customer-data",
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "status": "success"
+        }
+      }
+  deadline: "2024-12-31T23:59:59Z"
+  timeout: "30s"
+  retryPolicy:
+    maxRetries: 5
+    backoffStrategy: "exponential"
+    initialDelay: "1s"
+    maxDelay: "16s"
+  requiredTags:
+    - "integration"
+  preferredTags:
+    - "network-optimized"

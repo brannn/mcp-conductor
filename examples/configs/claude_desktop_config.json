@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mcp-conductor": {
+      "command": "/Users/bran/GolandProjects/mcp-conductor/bin/mcp-server",
+      "args": [],
+      "env": {
+        "KUBECONFIG": "/Users/bran/.kube/config"
+      }
+    }
+  }
+}

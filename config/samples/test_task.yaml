@@ -1,0 +1,14 @@
+apiVersion: mcp.io/v1
+kind: Task
+metadata:
+  name: test-list-namespaces
+spec:
+  domain: infrastructure
+  requiredCapabilities:
+    - k8s-list-namespaces
+  requiredTags:
+    - infrastructure
+  priority: 5
+  timeout: 30s
+  payload:
+    action: list_namespaces

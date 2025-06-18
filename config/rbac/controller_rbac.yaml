@@ -1,0 +1,111 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-controller
+  namespace: mcp-system
+  labels:
+    app: mcp-conductor
+    component: controller
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcp-controller-role
+  labels:
+    app: mcp-conductor
+    component: controller
+rules:
+# Agent CRD permissions
+- apiGroups: ["mcp.io"]
+  resources: ["agents"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["mcp.io"]
+  resources: ["agents/status"]
+  verbs: ["get", "update", "patch"]
+- apiGroups: ["mcp.io"]
+  resources: ["agents/finalizers"]
+  verbs: ["update"]
+
+# Task CRD permissions
+- apiGroups: ["mcp.io"]
+  resources: ["tasks"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["mcp.io"]
+  resources: ["tasks/status"]
+  verbs: ["get", "update", "patch"]
+- apiGroups: ["mcp.io"]
+  resources: ["tasks/finalizers"]
+  verbs: ["update"]
+
+# Core Kubernetes resources
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+
+# Metrics and health endpoints
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcp-controller-rolebinding
+  labels:
+    app: mcp-conductor
+    component: controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mcp-controller-role
+subjects:
+- kind: ServiceAccount
+  name: mcp-controller
+  namespace: mcp-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mcp-controller-leader-election
+  namespace: mcp-system
+  labels:
+    app: mcp-conductor
+    component: controller
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mcp-controller-leader-election
+  namespace: mcp-system
+  labels:
+    app: mcp-conductor
+    component: controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mcp-controller-leader-election
+subjects:
+- kind: ServiceAccount
+  name: mcp-controller
+  namespace: mcp-system

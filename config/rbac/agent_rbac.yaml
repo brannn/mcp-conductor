@@ -1,0 +1,101 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-agent
+  namespace: mcp-system
+  labels:
+    app: mcp-conductor
+    component: agent
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcp-agent-role
+  labels:
+    app: mcp-conductor
+    component: agent
+rules:
+# Agent CRD permissions (agents can manage their own Agent resource)
+- apiGroups: ["mcp.io"]
+  resources: ["agents"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["mcp.io"]
+  resources: ["agents/status"]
+  verbs: ["get", "update", "patch"]
+
+# Task CRD permissions (agents can read tasks and update status)
+- apiGroups: ["mcp.io"]
+  resources: ["tasks"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: ["mcp.io"]
+  resources: ["tasks/status"]
+  verbs: ["get", "update", "patch"]
+
+# Core Kubernetes resources (limited access)
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcp-agent-rolebinding
+  labels:
+    app: mcp-conductor
+    component: agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mcp-agent-role
+subjects:
+- kind: ServiceAccount
+  name: mcp-agent
+  namespace: mcp-system
+
+---
+# Namespace-scoped role for agents to access domain-specific resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mcp-agent-namespace
+  namespace: mcp-system
+  labels:
+    app: mcp-conductor
+    component: agent
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mcp-agent-namespace
+  namespace: mcp-system
+  labels:
+    app: mcp-conductor
+    component: agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mcp-agent-namespace
+subjects:
+- kind: ServiceAccount
+  name: mcp-agent
+  namespace: mcp-system

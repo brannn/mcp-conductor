@@ -1,0 +1,213 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: tasks.mcp.io
+spec:
+  group: mcp.io
+  names:
+    kind: Task
+    listKind: TaskList
+    plural: tasks
+    shortNames:
+    - mcptask
+    singular: task
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.domain
+      name: Domain
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.assignedAgent
+      name: Agent
+      type: string
+    - jsonPath: .spec.priority
+      name: Priority
+      type: integer
+    - jsonPath: .status.retryCount
+      name: Retries
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Task is the Schema for the tasks API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TaskSpec defines the desired state of Task
+            properties:
+              deadline:
+                description: Deadline specifies when the task must be completed
+                format: date-time
+                type: string
+              domain:
+                description: Domain specifies the domain this task belongs to
+                minLength: 1
+                type: string
+              payload:
+                description: Payload contains the task-specific data and parameters
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              preferredTags:
+                description: PreferredTags specifies agent tags that are preferred
+                  but not required
+                items:
+                  type: string
+                type: array
+              priority:
+                default: 5
+                description: Priority defines the task priority (1-10, higher is more
+                  urgent)
+                format: int32
+                maximum: 10
+                minimum: 1
+                type: integer
+              requiredCapabilities:
+                description: RequiredCapabilities is a list of capabilities required
+                  to execute this task
+                items:
+                  type: string
+                minItems: 1
+                type: array
+              requiredTags:
+                description: RequiredTags specifies agent tags that must be present
+                  for task assignment
+                items:
+                  type: string
+                type: array
+              retryPolicy:
+                description: RetryPolicy defines how the task should be retried on
+                  failure
+                properties:
+                  backoffStrategy:
+                    default: exponential
+                    description: BackoffStrategy defines the retry backoff strategy
+                    enum:
+                    - linear
+                    - exponential
+                    - fixed
+                    type: string
+                  initialDelay:
+                    default: 1s
+                    description: InitialDelay is the initial delay before the first
+                      retry
+                    type: string
+                  maxDelay:
+                    default: 300s
+                    description: MaxDelay is the maximum delay between retries
+                    type: string
+                  maxRetries:
+                    default: 3
+                    description: MaxRetries is the maximum number of retry attempts
+                    format: int32
+                    maximum: 10
+                    minimum: 0
+                    type: integer
+                type: object
+              timeout:
+                default: 300s
+                description: Timeout specifies the maximum duration for task execution
+                type: string
+            required:
+            - domain
+            - requiredCapabilities
+            type: object
+          status:
+            description: TaskStatus defines the observed state of Task
+            properties:
+              assignedAgent:
+                description: AssignedAgent is the name of the agent assigned to this
+                  task
+                type: string
+              completionTime:
+                description: CompletionTime is when the task execution completed
+                format: date-time
+                type: string
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the task's state
+                items:
+                  description: TaskCondition describes the state of a task at a certain
+                    point
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown
+                      type: string
+                    type:
+                      description: Type of task condition
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              error:
+                description: Error contains error information if the task failed
+                type: string
+              observedGeneration:
+                description: ObservedGeneration reflects the generation of the most
+                  recently observed Task spec
+                format: int64
+                type: integer
+              phase:
+                description: Phase represents the current execution phase of the task
+                enum:
+                - Pending
+                - Assigned
+                - Running
+                - Completed
+                - Failed
+                - Cancelled
+                type: string
+              result:
+                description: Result contains the task execution results
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              retryCount:
+                default: 0
+                description: RetryCount is the number of times this task has been
+                  retried
+                format: int32
+                minimum: 0
+                type: integer
+              startTime:
+                description: StartTime is when the task execution started
+                format: date-time
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

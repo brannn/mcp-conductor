@@ -1,0 +1,24 @@
+# Sample task that works with the deployed infrastructure agent
+apiVersion: mcp.io/v1
+kind: Task
+metadata:
+  name: list-cluster-namespaces
+  namespace: default
+  labels:
+    app: mcp-conductor
+    component: task
+    domain: infrastructure
+spec:
+  domain: "infrastructure"
+  requiredCapabilities:
+    - "k8s-list-namespaces"
+  priority: 5
+  payload:
+    action: "list_namespaces"
+  timeout: "30s"
+  retryPolicy:
+    maxRetries: 2
+    backoffStrategy: "exponential"
+    initialDelay: "5s"
+  requiredTags:
+    - "infrastructure"

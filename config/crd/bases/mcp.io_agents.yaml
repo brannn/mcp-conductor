@@ -1,0 +1,181 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: agents.mcp.io
+spec:
+  group: mcp.io
+  names:
+    kind: Agent
+    listKind: AgentList
+    plural: agents
+    shortNames:
+    - mcpagent
+    singular: agent
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.domain
+      name: Domain
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.currentTasks
+      name: Current Tasks
+      type: integer
+    - jsonPath: .status.completedTasks
+      name: Completed
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Agent is the Schema for the agents API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AgentSpec defines the desired state of Agent
+            properties:
+              capabilities:
+                description: Capabilities is a list of capabilities this agent can
+                  handle
+                items:
+                  type: string
+                minItems: 1
+                type: array
+              domain:
+                description: Domain specifies the domain this agent belongs to (e.g.,
+                  "data-processing", "infrastructure")
+                minLength: 1
+                type: string
+              heartbeatInterval:
+                default: 30s
+                description: HeartbeatInterval defines how often the agent should
+                  report its health status
+                type: string
+              maxConcurrentTasks:
+                default: 5
+                description: MaxConcurrentTasks defines the maximum number of tasks
+                  this agent can handle simultaneously
+                format: int32
+                maximum: 100
+                minimum: 1
+                type: integer
+              resources:
+                description: Resources defines the resource allocation for this agent
+                properties:
+                  cpu:
+                    description: CPU resource allocation (e.g., "1", "500m")
+                    type: string
+                  gpu:
+                    default: false
+                    description: GPU indicates if this agent has GPU access
+                    type: boolean
+                  memory:
+                    description: Memory resource allocation (e.g., "2Gi", "512Mi")
+                    type: string
+                  storage:
+                    description: Storage resource allocation (e.g., "10Gi", "1Ti")
+                    type: string
+                type: object
+              tags:
+                description: Tags are additional metadata tags for scheduling and
+                  filtering
+                items:
+                  type: string
+                type: array
+            required:
+            - capabilities
+            - domain
+            type: object
+          status:
+            description: AgentStatus defines the observed state of Agent
+            properties:
+              completedTasks:
+                default: 0
+                description: CompletedTasks is the total number of completed tasks
+                format: int64
+                minimum: 0
+                type: integer
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the agent's state
+                items:
+                  description: AgentCondition describes the state of an agent at a
+                    certain point
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown
+                      type: string
+                    type:
+                      description: Type of agent condition
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              currentTasks:
+                default: 0
+                description: CurrentTasks is the number of currently assigned tasks
+                format: int32
+                minimum: 0
+                type: integer
+              failedTasks:
+                default: 0
+                description: FailedTasks is the total number of failed tasks
+                format: int64
+                minimum: 0
+                type: integer
+              lastHeartbeat:
+                description: LastHeartbeat is the timestamp of the last health check
+                format: date-time
+                type: string
+              observedGeneration:
+                description: ObservedGeneration reflects the generation of the most
+                  recently observed Agent spec
+                format: int64
+                type: integer
+              phase:
+                description: Phase represents the current operational status of the
+                  agent
+                enum:
+                - Ready
+                - NotReady
+                - Unknown
+                - Terminating
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

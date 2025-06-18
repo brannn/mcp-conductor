@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "mcp-conductor": {
+      "transport": "http",
+      "url": "http://127.0.0.1:8080",
+      "name": "MCP Conductor",
+      "description": "Kubernetes-native MCP orchestration platform",
+      "version": "0.1.0",
+      "protocolVersion": "2025-03-26",
+      "capabilities": [
+        "list_kubernetes_pods",
+        "list_kubernetes_nodes", 
+        "get_cluster_summary",
+        "list_kubernetes_deployments",
+        "list_kubernetes_services",
+        "list_kubernetes_daemonsets",
+        "get_kubernetes_pod",
+        "get_kubernetes_node_status",
+        "list_kubernetes_namespaces"
+      ]
+    }
+  }
+}

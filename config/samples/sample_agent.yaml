@@ -1,0 +1,34 @@
+# This file contains working sample agents that have actual implementations
+# For additional agent examples, see docs/examples/
+
+apiVersion: mcp.io/v1
+kind: Agent
+metadata:
+  name: infrastructure-agent
+  namespace: default
+  labels:
+    app: mcp-conductor
+    component: agent
+    domain: infrastructure
+spec:
+  domain: "infrastructure"
+  capabilities:
+    - "k8s-list-pods"
+    - "k8s-list-deployments"
+    - "k8s-list-daemonsets"
+    - "k8s-list-services"
+    - "k8s-list-nodes"
+    - "k8s-list-namespaces"
+    - "k8s-get-pod"
+    - "k8s-get-deployment"
+    - "k8s-get-node-status"
+    - "k8s-cluster-summary"
+  resources:
+    cpu: "500m"
+    memory: "1Gi"
+    gpu: false
+  tags:
+    - "infrastructure"
+    - "kubernetes"
+  maxConcurrentTasks: 5
+  heartbeatInterval: "30s"

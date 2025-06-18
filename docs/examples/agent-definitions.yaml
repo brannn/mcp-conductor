@@ -1,0 +1,91 @@
+# Example agent definitions for different domains
+# These are templates showing how to structure agents for various use cases
+# Note: These require actual agent implementations to function
+
+---
+apiVersion: mcp.io/v1
+kind: Agent
+metadata:
+  name: data-processor-agent
+  namespace: default
+  labels:
+    app: mcp-conductor
+    component: agent
+    domain: data-processing
+spec:
+  domain: "data-processing"
+  capabilities:
+    - "csv-transform"
+    - "json-validate"
+    - "data-clean"
+    - "data-aggregate"
+  resources:
+    cpu: "1"
+    memory: "2Gi"
+    gpu: false
+    storage: "10Gi"
+  tags:
+    - "zone-us-west"
+    - "high-memory"
+    - "data-processing"
+  maxConcurrentTasks: 3
+  heartbeatInterval: "30s"
+
+---
+apiVersion: mcp.io/v1
+kind: Agent
+metadata:
+  name: filesystem-agent
+  namespace: default
+  labels:
+    app: mcp-conductor
+    component: agent
+    domain: infrastructure
+spec:
+  domain: "infrastructure"
+  capabilities:
+    - "file-read"
+    - "file-write"
+    - "file-list"
+    - "directory-create"
+    - "file-delete"
+  resources:
+    cpu: "500m"
+    memory: "1Gi"
+    gpu: false
+    storage: "5Gi"
+  tags:
+    - "zone-us-east"
+    - "storage-optimized"
+    - "infrastructure"
+  maxConcurrentTasks: 5
+  heartbeatInterval: "15s"
+
+---
+apiVersion: mcp.io/v1
+kind: Agent
+metadata:
+  name: http-client-agent
+  namespace: default
+  labels:
+    app: mcp-conductor
+    component: agent
+    domain: integration
+spec:
+  domain: "integration"
+  capabilities:
+    - "http-get"
+    - "http-post"
+    - "http-put"
+    - "http-delete"
+    - "webhook-call"
+  resources:
+    cpu: "250m"
+    memory: "512Mi"
+    gpu: false
+  tags:
+    - "zone-us-central"
+    - "network-optimized"
+    - "integration"
+  maxConcurrentTasks: 10
+  heartbeatInterval: "20s"
