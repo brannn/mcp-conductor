@@ -546,7 +546,7 @@ func (s *Server) handleMCPToolsList(req MCPRequest) MCPResponse {
 	}
 }
 
-// createToolDefinition creates a tool definition with optional annotations
+// createToolDefinition creates a tool definition with optional annotations and output schema
 func (s *Server) createToolDefinition(name, description string, inputSchema map[string]interface{}, includeAnnotations bool) map[string]interface{} {
 	tool := map[string]interface{}{
 		"name":        name,
@@ -561,7 +561,209 @@ func (s *Server) createToolDefinition(name, description string, inputSchema map[
 		}
 	}
 
+	// MCP 2025-06-18: Add output schema for structured content
+	if s.protocolVersion == "2025-06-18" {
+		tool["outputSchema"] = s.getOutputSchemaForTool(name)
+	}
+
 	return tool
+}
+
+// getOutputSchemaForTool returns the output schema for a specific tool (MCP 2025-06-18)
+func (s *Server) getOutputSchemaForTool(toolName string) map[string]interface{} {
+	switch toolName {
+	case "list_kubernetes_pods":
+		return map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"success": map[string]interface{}{
+					"type": "boolean",
+					"description": "Whether the operation was successful",
+				},
+				"data": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"count": map[string]interface{}{
+							"type": "integer",
+							"description": "Number of pods found",
+						},
+						"pods": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"name":      map[string]interface{}{"type": "string"},
+									"namespace": map[string]interface{}{"type": "string"},
+									"phase":     map[string]interface{}{"type": "string"},
+									"ready":     map[string]interface{}{"type": "boolean"},
+									"restarts":  map[string]interface{}{"type": "integer"},
+									"age":       map[string]interface{}{"type": "string"},
+									"node":      map[string]interface{}{"type": "string"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	case "list_kubernetes_namespaces":
+		return map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"success": map[string]interface{}{
+					"type": "boolean",
+					"description": "Whether the operation was successful",
+				},
+				"data": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"count": map[string]interface{}{
+							"type": "integer",
+							"description": "Number of namespaces found",
+						},
+						"namespaces": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"name":   map[string]interface{}{"type": "string"},
+									"status": map[string]interface{}{"type": "string"},
+									"age":    map[string]interface{}{"type": "string"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	case "list_kubernetes_nodes":
+		return map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"success": map[string]interface{}{
+					"type": "boolean",
+					"description": "Whether the operation was successful",
+				},
+				"data": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"count": map[string]interface{}{
+							"type": "integer",
+							"description": "Number of nodes found",
+						},
+						"nodes": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"name":   map[string]interface{}{"type": "string"},
+									"status": map[string]interface{}{"type": "string"},
+									"roles":  map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+									"age":    map[string]interface{}{"type": "string"},
+									"version": map[string]interface{}{"type": "string"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	default:
+		// Generic schema for other tools
+		return map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"success": map[string]interface{}{
+					"type": "boolean",
+					"description": "Whether the operation was successful",
+				},
+				"data": map[string]interface{}{
+					"type": "object",
+					"description": "Tool-specific result data",
+				},
+			},
+		}
+	}
+}
+
+// generateResourceLinksForTool creates resource links for tool responses (MCP 2025-06-18)
+func (s *Server) generateResourceLinksForTool(toolName string, params map[string]interface{}, structuredData interface{}) []map[string]interface{} {
+	var links []map[string]interface{}
+
+	switch toolName {
+	case "list_kubernetes_pods":
+		// Create resource links for each pod
+		if data, ok := structuredData.(map[string]interface{}); ok {
+			if podData, ok := data["data"].(map[string]interface{}); ok {
+				if pods, ok := podData["pods"].([]interface{}); ok {
+					for _, podInterface := range pods {
+						if pod, ok := podInterface.(map[string]interface{}); ok {
+							if name, ok := pod["name"].(string); ok && name != "" {
+								namespace := "default"
+								if ns, ok := pod["namespace"].(string); ok && ns != "" {
+									namespace = ns
+								}
+								links = append(links, map[string]interface{}{
+									"type": "resource",
+									"resource": map[string]interface{}{
+										"uri":         fmt.Sprintf("kubernetes://pod/%s/%s", namespace, name),
+										"name":        fmt.Sprintf("Pod: %s", name),
+										"description": fmt.Sprintf("Kubernetes pod %s in namespace %s", name, namespace),
+									},
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+	case "list_kubernetes_namespaces":
+		// Create resource links for each namespace
+		if data, ok := structuredData.(map[string]interface{}); ok {
+			if nsData, ok := data["data"].(map[string]interface{}); ok {
+				if namespaces, ok := nsData["namespaces"].([]interface{}); ok {
+					for _, nsInterface := range namespaces {
+						if ns, ok := nsInterface.(map[string]interface{}); ok {
+							if name, ok := ns["name"].(string); ok && name != "" {
+								links = append(links, map[string]interface{}{
+									"type": "resource",
+									"resource": map[string]interface{}{
+										"uri":         fmt.Sprintf("kubernetes://namespace/%s", name),
+										"name":        fmt.Sprintf("Namespace: %s", name),
+										"description": fmt.Sprintf("Kubernetes namespace %s", name),
+									},
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+	case "list_kubernetes_nodes":
+		// Create resource links for each node
+		if data, ok := structuredData.(map[string]interface{}); ok {
+			if nodeData, ok := data["data"].(map[string]interface{}); ok {
+				if nodes, ok := nodeData["nodes"].([]interface{}); ok {
+					for _, nodeInterface := range nodes {
+						if node, ok := nodeInterface.(map[string]interface{}); ok {
+							if name, ok := node["name"].(string); ok && name != "" {
+								links = append(links, map[string]interface{}{
+									"type": "resource",
+									"resource": map[string]interface{}{
+										"uri":         fmt.Sprintf("kubernetes://node/%s", name),
+										"name":        fmt.Sprintf("Node: %s", name),
+										"description": fmt.Sprintf("Kubernetes node %s", name),
+									},
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return links
 }
 
 // handleResourcesList returns an empty list of resources
@@ -617,7 +819,7 @@ func (s *Server) handleToolsCall(ctx context.Context, req MCPRequest) MCPRespons
 	}
 
 	// Create and execute task
-	result, err := s.executeTask(ctx, toolName, capability, domain, params)
+	result, structuredData, err := s.executeTaskWithStructuredOutput(ctx, toolName, capability, domain, params)
 	if err != nil {
 		return MCPResponse{
 			Error: &MCPError{
@@ -628,17 +830,33 @@ func (s *Server) handleToolsCall(ctx context.Context, req MCPRequest) MCPRespons
 		}
 	}
 
-	return MCPResponse{
-		Result: map[string]interface{}{
-			"content": []map[string]interface{}{
-				{
-					"type": "text",
-					"text": result,
-				},
-			},
-			"isError": false,
+	// Build response based on protocol version
+	content := []map[string]interface{}{
+		{
+			"type": "text",
+			"text": result,
 		},
-		ID: req.ID,
+	}
+
+	// MCP 2025-06-18: Add resource links if available
+	if s.protocolVersion == "2025-06-18" {
+		resourceLinks := s.generateResourceLinksForTool(toolName, params, structuredData)
+		content = append(content, resourceLinks...)
+	}
+
+	response := map[string]interface{}{
+		"content":  content,
+		"isError":  false,
+	}
+
+	// MCP 2025-06-18: Add structured content if available and protocol supports it
+	if s.protocolVersion == "2025-06-18" && structuredData != nil {
+		response["structuredContent"] = structuredData
+	}
+
+	return MCPResponse{
+		Result: response,
+		ID:     req.ID,
 	}
 }
 
@@ -668,12 +886,12 @@ func (s *Server) mapToolToCapability(toolName string) (capability, domain string
 	}
 }
 
-// executeTask creates a Kubernetes task and waits for completion
-func (s *Server) executeTask(ctx context.Context, toolName, capability, domain string, params map[string]interface{}) (string, error) {
+// executeTaskWithStructuredOutput creates a Kubernetes task and waits for completion, returning both text and structured data
+func (s *Server) executeTaskWithStructuredOutput(ctx context.Context, toolName, capability, domain string, params map[string]interface{}) (string, interface{}, error) {
 	// Create task payload
 	payloadBytes, err := json.Marshal(params)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal params: %w", err)
+		return "", nil, fmt.Errorf("failed to marshal params: %w", err)
 	}
 
 	// Generate unique task name
@@ -712,27 +930,41 @@ func (s *Server) executeTask(ctx context.Context, toolName, capability, domain s
 	s.Logger.Info("Creating task", "task", taskName, "capability", capability, "domain", domain)
 
 	if err := s.Client.Create(ctx, task); err != nil {
-		return "", fmt.Errorf("failed to create task: %w", err)
+		return "", nil, fmt.Errorf("failed to create task: %w", err)
 	}
 
 	// Wait for task completion
-	return s.waitForTaskCompletion(ctx, taskName)
+	return s.waitForTaskCompletionWithStructuredOutput(ctx, taskName)
 }
 
-// waitForTaskCompletion waits for a task to complete and returns the result
-func (s *Server) waitForTaskCompletion(ctx context.Context, taskName string) (string, error) {
+// waitForTaskCompletionWithStructuredOutput waits for a task to complete and returns both text and structured data
+func (s *Server) waitForTaskCompletionWithStructuredOutput(ctx context.Context, taskName string) (string, interface{}, error) {
+	// Optimized: Check immediately first (some tasks complete very quickly)
+	task := &mcpv1.Task{}
+	key := types.NamespacedName{Name: taskName, Namespace: "default"}
+
+	if err := s.Client.Get(ctx, key, task); err == nil {
+		switch task.Status.Phase {
+		case mcpv1.TaskPhaseCompleted:
+			textResult, structuredResult := s.formatTaskResultWithStructuredOutput(task)
+			return textResult, structuredResult, nil
+		case mcpv1.TaskPhaseFailed:
+			return "", nil, fmt.Errorf("task failed: %s", task.Status.Error)
+		case mcpv1.TaskPhaseCancelled:
+			return "", nil, fmt.Errorf("task was cancelled")
+		}
+	}
+
 	timeout := time.After(90 * time.Second)
-	ticker := time.NewTicker(2 * time.Second)
+	// Optimized: Use 500ms polling for faster response times
+	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-timeout:
-			return "", fmt.Errorf("task execution timed out")
+			return "", nil, fmt.Errorf("task execution timed out")
 		case <-ticker.C:
-			task := &mcpv1.Task{}
-			key := types.NamespacedName{Name: taskName, Namespace: "default"}
-
 			if err := s.Client.Get(ctx, key, task); err != nil {
 				s.Logger.Error(err, "Failed to get task", "task", taskName)
 				continue
@@ -740,11 +972,12 @@ func (s *Server) waitForTaskCompletion(ctx context.Context, taskName string) (st
 
 			switch task.Status.Phase {
 			case mcpv1.TaskPhaseCompleted:
-				return s.formatTaskResult(task), nil
+				textResult, structuredResult := s.formatTaskResultWithStructuredOutput(task)
+				return textResult, structuredResult, nil
 			case mcpv1.TaskPhaseFailed:
-				return "", fmt.Errorf("task failed: %s", task.Status.Error)
+				return "", nil, fmt.Errorf("task failed: %s", task.Status.Error)
 			case mcpv1.TaskPhaseCancelled:
-				return "", fmt.Errorf("task was cancelled")
+				return "", nil, fmt.Errorf("task was cancelled")
 			default:
 				s.Logger.V(1).Info("Task still running", "task", taskName, "phase", task.Status.Phase)
 			}
@@ -752,22 +985,33 @@ func (s *Server) waitForTaskCompletion(ctx context.Context, taskName string) (st
 	}
 }
 
-// formatTaskResult formats the task result for MCP response
-func (s *Server) formatTaskResult(task *mcpv1.Task) string {
+// formatTaskResultWithStructuredOutput formats the task result for MCP response, returning both text and structured data
+func (s *Server) formatTaskResultWithStructuredOutput(task *mcpv1.Task) (string, interface{}) {
 	if task.Status.Result == nil {
-		return "Task completed successfully (no result data)"
+		return "Task completed successfully (no result data)", nil
 	}
 
 	var result map[string]interface{}
 	if err := json.Unmarshal(task.Status.Result.Raw, &result); err != nil {
-		return fmt.Sprintf("Task completed but result parsing failed: %v", err)
+		return fmt.Sprintf("Task completed but result parsing failed: %v", err), nil
 	}
 
-	// Format the result nicely
+	// Format the result nicely for text content
 	resultBytes, err := json.MarshalIndent(result, "", "  ")
+	textResult := ""
 	if err != nil {
-		return fmt.Sprintf("Task completed: %v", result)
+		textResult = fmt.Sprintf("Task completed: %v", result)
+	} else {
+		textResult = string(resultBytes)
 	}
 
-	return string(resultBytes)
+	// Return both text and structured data
+	// The structured data is the parsed result without JSON formatting
+	return textResult, result
+}
+
+// formatTaskResult formats the task result for MCP response (backward compatibility)
+func (s *Server) formatTaskResult(task *mcpv1.Task) string {
+	textResult, _ := s.formatTaskResultWithStructuredOutput(task)
+	return textResult
 }
