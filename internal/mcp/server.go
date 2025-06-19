@@ -334,8 +334,9 @@ type MCPResponse struct {
 
 // MCPError represents an MCP error
 type MCPError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int                    `json:"code"`
+	Message string                 `json:"message"`
+	Data    map[string]interface{} `json:"data,omitempty"`
 }
 
 // handleRequest processes an MCP request
@@ -362,6 +363,11 @@ func (s *Server) handleRequest(ctx context.Context, req MCPRequest) MCPResponse 
 	case "initialized":
 		// MCP 2025-06-18: Lifecycle operations are now mandatory
 		response := s.handleInitialized(req)
+		response.JSONRPC = jsonrpcVersion
+		return response
+	case "elicitation/respond":
+		// MCP 2025-06-18: Elicitation support
+		response := s.handleElicitationRespond(ctx, req)
 		response.JSONRPC = jsonrpcVersion
 		return response
 	case "resources/list":
@@ -444,6 +450,64 @@ func (s *Server) handleInitialized(req MCPRequest) MCPResponse {
 	// This is a notification, so we return an empty response
 	// The ID should be null for notifications
 	return MCPResponse{
+		ID: req.ID,
+	}
+}
+
+// handleElicitationRespond handles user responses to elicitation requests (MCP 2025-06-18)
+func (s *Server) handleElicitationRespond(ctx context.Context, req MCPRequest) MCPResponse {
+	// Only available in MCP 2025-06-18
+	if s.protocolVersion != "2025-06-18" {
+		return MCPResponse{
+			Error: &MCPError{
+				Code:    -32601,
+				Message: "Elicitation is only supported in MCP 2025-06-18",
+			},
+			ID: req.ID,
+		}
+	}
+
+	// Parse elicitation response parameters
+	params := req.Params
+	if params == nil {
+		return MCPResponse{
+			Error: &MCPError{
+				Code:    -32602,
+				Message: "Missing elicitation response parameters",
+			},
+			ID: req.ID,
+		}
+	}
+
+	elicitationID, ok := params["elicitationId"].(string)
+	if !ok || elicitationID == "" {
+		return MCPResponse{
+			Error: &MCPError{
+				Code:    -32602,
+				Message: "Missing or invalid elicitationId",
+			},
+			ID: req.ID,
+		}
+	}
+
+	response, _ := params["response"].(string)
+	cancelled, _ := params["cancelled"].(bool)
+
+	// Update the task with the elicitation response
+	if err := s.updateTaskElicitationResponse(ctx, elicitationID, response, cancelled); err != nil {
+		return MCPResponse{
+			Error: &MCPError{
+				Code:    -32603,
+				Message: fmt.Sprintf("Failed to update elicitation response: %v", err),
+			},
+			ID: req.ID,
+		}
+	}
+
+	return MCPResponse{
+		Result: map[string]interface{}{
+			"success": true,
+		},
 		ID: req.ID,
 	}
 }
@@ -766,6 +830,150 @@ func (s *Server) generateResourceLinksForTool(toolName string, params map[string
 	return links
 }
 
+// updateTaskElicitationResponse updates a task with the user's elicitation response
+func (s *Server) updateTaskElicitationResponse(ctx context.Context, elicitationID, response string, cancelled bool) error {
+	// Find the task that has this elicitation request
+	taskList := &mcpv1.TaskList{}
+	if err := s.Client.List(ctx, taskList); err != nil {
+		return fmt.Errorf("failed to list tasks: %w", err)
+	}
+
+	var targetTask *mcpv1.Task
+	for i := range taskList.Items {
+		task := &taskList.Items[i]
+		if task.Status.ElicitationRequest != nil && task.Status.ElicitationRequest.ID == elicitationID {
+			targetTask = task
+			break
+		}
+	}
+
+	if targetTask == nil {
+		return fmt.Errorf("task with elicitation ID %s not found", elicitationID)
+	}
+
+	// Update the task with the elicitation response
+	now := metav1.Now()
+	targetTask.Status.ElicitationResponse = &mcpv1.TaskElicitationResponse{
+		ID:           elicitationID,
+		Response:     response,
+		ResponseTime: &now,
+		Cancelled:    cancelled,
+	}
+
+	// Clear the elicitation request and resume task execution
+	targetTask.Status.ElicitationRequest = nil
+	targetTask.Status.Phase = mcpv1.TaskPhaseRunning
+
+	// Update the task status
+	if err := s.Client.Status().Update(ctx, targetTask); err != nil {
+		return fmt.Errorf("failed to update task status: %w", err)
+	}
+
+	s.Logger.Info("Updated task with elicitation response",
+		"task", targetTask.Name,
+		"elicitationID", elicitationID,
+		"cancelled", cancelled)
+
+	return nil
+}
+
+// handleTaskElicitation handles a task that is waiting for elicitation (MCP 2025-06-18)
+func (s *Server) handleTaskElicitation(ctx context.Context, task *mcpv1.Task) (string, interface{}, error) {
+	elicitationReq := task.Status.ElicitationRequest
+	if elicitationReq == nil {
+		return "", nil, fmt.Errorf("task is waiting for elicitation but no elicitation request found")
+	}
+
+	// Return an elicitation response that the MCP client can handle
+	elicitationResponse := map[string]interface{}{
+		"type": "elicitation",
+		"elicitation": map[string]interface{}{
+			"id":           elicitationReq.ID,
+			"prompt":       elicitationReq.Prompt,
+			"promptType":   elicitationReq.PromptType,
+			"choices":      elicitationReq.Choices,
+			"defaultValue": elicitationReq.DefaultValue,
+			"required":     elicitationReq.Required,
+			"requestTime":  elicitationReq.RequestTime,
+		},
+	}
+
+	// Format as text for human readability
+	textResponse := fmt.Sprintf("Task is waiting for user input:\n\nPrompt: %s\nType: %s\nElicitation ID: %s\n\nPlease respond using the elicitation/respond method.",
+		elicitationReq.Prompt,
+		elicitationReq.PromptType,
+		elicitationReq.ID)
+
+	return textResponse, elicitationResponse, nil
+}
+
+// createEnhancedError creates an enhanced error response with context (MCP 2025-06-18)
+func (s *Server) createEnhancedError(err error, toolName string, params map[string]interface{}) *MCPError {
+	// Base error
+	mcpError := &MCPError{
+		Code:    -32603,
+		Message: fmt.Sprintf("Task execution failed: %v", err),
+	}
+
+	// MCP 2025-06-18: Add enhanced error context
+	if s.protocolVersion == "2025-06-18" {
+		mcpError.Data = map[string]interface{}{
+			"toolName":  toolName,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"context": map[string]interface{}{
+				"parameters": params,
+				"errorType":  fmt.Sprintf("%T", err),
+			},
+		}
+
+		// Add recovery suggestions based on error type
+		if strings.Contains(err.Error(), "timeout") {
+			mcpError.Data["recoverySuggestion"] = "Consider increasing the task timeout or checking system load"
+		} else if strings.Contains(err.Error(), "not found") {
+			mcpError.Data["recoverySuggestion"] = "Verify that the requested resource exists and is accessible"
+		} else if strings.Contains(err.Error(), "permission") || strings.Contains(err.Error(), "forbidden") {
+			mcpError.Data["recoverySuggestion"] = "Check that the agent has sufficient permissions for this operation"
+		} else if strings.Contains(err.Error(), "connection") || strings.Contains(err.Error(), "network") {
+			mcpError.Data["recoverySuggestion"] = "Check network connectivity and service availability"
+		} else {
+			mcpError.Data["recoverySuggestion"] = "Review the error details and tool parameters"
+		}
+	}
+
+	return mcpError
+}
+
+// validateToolInput validates tool input parameters against schema (MCP 2025-06-18)
+func (s *Server) validateToolInput(toolName string, params map[string]interface{}) error {
+	// Basic validation for known tools
+	switch toolName {
+	case "list_kubernetes_pods":
+		if namespace, ok := params["namespace"]; ok {
+			if ns, ok := namespace.(string); !ok || ns == "" {
+				return fmt.Errorf("namespace must be a non-empty string")
+			}
+		}
+	case "get_kubernetes_pod":
+		if name, ok := params["name"]; !ok {
+			return fmt.Errorf("name parameter is required")
+		} else if n, ok := name.(string); !ok || n == "" {
+			return fmt.Errorf("name must be a non-empty string")
+		}
+		if namespace, ok := params["namespace"]; ok {
+			if ns, ok := namespace.(string); !ok || ns == "" {
+				return fmt.Errorf("namespace must be a non-empty string")
+			}
+		}
+	case "list_kubernetes_namespaces", "list_kubernetes_nodes", "get_cluster_summary":
+		// These tools don't require parameters, but validate no unexpected params
+		for key := range params {
+			return fmt.Errorf("unexpected parameter: %s", key)
+		}
+	}
+
+	return nil
+}
+
 // handleResourcesList returns an empty list of resources
 func (s *Server) handleResourcesList(req MCPRequest) MCPResponse {
 	return MCPResponse{
@@ -818,15 +1026,32 @@ func (s *Server) handleToolsCall(ctx context.Context, req MCPRequest) MCPRespons
 		}
 	}
 
+	// MCP 2025-06-18: Validate input parameters against schema
+	if s.protocolVersion == "2025-06-18" {
+		if validationErr := s.validateToolInput(toolName, params); validationErr != nil {
+			return MCPResponse{
+				Error: &MCPError{
+					Code:    -32602,
+					Message: fmt.Sprintf("Input validation failed: %v", validationErr),
+					Data: map[string]interface{}{
+						"toolName":        toolName,
+						"validationError": validationErr.Error(),
+						"providedParams":  params,
+					},
+				},
+				ID: req.ID,
+			}
+		}
+	}
+
 	// Create and execute task
 	result, structuredData, err := s.executeTaskWithStructuredOutput(ctx, toolName, capability, domain, params)
 	if err != nil {
+		// MCP 2025-06-18: Enhanced error handling with context
+		errorResponse := s.createEnhancedError(err, toolName, params)
 		return MCPResponse{
-			Error: &MCPError{
-				Code:    -32603,
-				Message: fmt.Sprintf("Task execution failed: %v", err),
-			},
-			ID: req.ID,
+			Error: errorResponse,
+			ID:    req.ID,
 		}
 	}
 
@@ -978,6 +1203,12 @@ func (s *Server) waitForTaskCompletionWithStructuredOutput(ctx context.Context, 
 				return "", nil, fmt.Errorf("task failed: %s", task.Status.Error)
 			case mcpv1.TaskPhaseCancelled:
 				return "", nil, fmt.Errorf("task was cancelled")
+			case mcpv1.TaskPhaseWaitingForElicitation:
+				// MCP 2025-06-18: Handle elicitation requests
+				if s.protocolVersion == "2025-06-18" && task.Status.ElicitationRequest != nil {
+					return s.handleTaskElicitation(ctx, task)
+				}
+				s.Logger.V(1).Info("Task waiting for elicitation", "task", taskName)
 			default:
 				s.Logger.V(1).Info("Task still running", "task", taskName, "phase", task.Status.Phase)
 			}
