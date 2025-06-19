@@ -1,0 +1,182 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: elicitations.mcp.io
+spec:
+  group: mcp.io
+  names:
+    kind: Elicitation
+    listKind: ElicitationList
+    plural: elicitations
+    singular: elicitation
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.taskName
+      name: Task
+      type: string
+    - jsonPath: .spec.promptType
+      name: Type
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Elicitation is the Schema for the elicitations API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal version, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ElicitationSpec defines the desired state of Elicitation
+            properties:
+              choices:
+                description: Choices provides options for choice-type prompts
+                items:
+                  description: ElicitationChoice represents a choice option for choice-type
+                    prompts
+                  properties:
+                    description:
+                      description: Description provides additional context for this
+                        choice
+                      type: string
+                    label:
+                      description: Label is the human-readable label for this choice
+                      type: string
+                    value:
+                      description: Value is the actual value to return if this choice
+                        is selected
+                      type: string
+                  required:
+                  - label
+                  - value
+                  type: object
+                type: array
+              context:
+                description: Context provides additional context for the prompt
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              defaultValue:
+                description: DefaultValue provides a default value for the prompt
+                type: string
+              prompt:
+                description: Prompt is the message to display to the user
+                minLength: 1
+                type: string
+              promptType:
+                default: text
+                description: PromptType specifies the type of input expected from
+                  the user
+                enum:
+                - text
+                - choice
+                - confirmation
+                - secret
+                type: string
+              required:
+                default: true
+                description: Required indicates whether a response is mandatory
+                type: boolean
+              taskName:
+                description: TaskName is the name of the task that requested this
+                  elicitation
+                minLength: 1
+                type: string
+              taskNamespace:
+                description: TaskNamespace is the namespace of the task that requested
+                  this elicitation
+                minLength: 1
+                type: string
+              timeout:
+                default: 300s
+                description: Timeout specifies how long to wait for user response
+                type: string
+            required:
+            - prompt
+            - taskName
+            - taskNamespace
+            type: object
+          status:
+            description: ElicitationStatus defines the observed state of Elicitation
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the elicitation's state
+                items:
+                  description: ElicitationCondition describes the state of an elicitation
+                    at a certain point
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown
+                      type: string
+                    type:
+                      description: Type of elicitation condition
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              createdTime:
+                description: CreatedTime is when the elicitation was created
+                format: date-time
+                type: string
+              error:
+                description: Error contains error information if the elicitation failed
+                type: string
+              observedGeneration:
+                description: ObservedGeneration reflects the generation of the most
+                  recently observed Elicitation
+                format: int64
+                type: integer
+              phase:
+                description: Phase represents the current phase of the elicitation
+                enum:
+                - Pending
+                - Waiting
+                - Responded
+                - Timeout
+                - Cancelled
+                type: string
+              response:
+                description: Response contains the user's response
+                type: string
+              responseTime:
+                description: ResponseTime is when the user provided a response
+                format: date-time
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
