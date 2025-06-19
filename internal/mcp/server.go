@@ -147,6 +147,28 @@ func (s *Server) handleStreamablePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// MCP 2025-06-18: Check for MCP-Protocol-Version header in subsequent requests
+	// (after initial handshake, this header should be present)
+	protocolVersion := r.Header.Get("MCP-Protocol-Version")
+	if protocolVersion != "" {
+		// Validate the protocol version
+		supportedVersions := []string{"2024-11-05", "2025-03-26", "2025-06-18"}
+		isSupported := false
+		for _, version := range supportedVersions {
+			if version == protocolVersion {
+				isSupported = true
+				break
+			}
+		}
+		if !isSupported {
+			s.Logger.Info("Unsupported protocol version in header", "version", protocolVersion)
+			http.Error(w, fmt.Sprintf("Unsupported protocol version: %s", protocolVersion), http.StatusBadRequest)
+			return
+		}
+		// Store the negotiated version for this request
+		s.protocolVersion = protocolVersion
+	}
+
 	// Read request body
 	body, err := json.RawMessage{}, error(nil)
 	if err = json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -155,12 +177,15 @@ func (s *Server) handleStreamablePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if it's a batch or single request
+	// MCP 2025-06-18: JSON-RPC batching is no longer supported
+	// Check if it's a batch request and reject it
 	if len(body) > 0 && body[0] == '[' {
-		s.handleStreamableBatch(w, r, body)
-	} else {
-		s.handleStreamableSingle(w, r, body)
+		s.Logger.Info("Rejected batch request - batching not supported in MCP 2025-06-18")
+		http.Error(w, "JSON-RPC batching is not supported", http.StatusBadRequest)
+		return
 	}
+
+	s.handleStreamableSingle(w, r, body)
 }
 
 // handleStreamableSingle handles single JSON-RPC requests
@@ -191,51 +216,7 @@ func (s *Server) handleStreamableSingle(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
-// handleStreamableBatch handles JSON-RPC batch requests
-func (s *Server) handleStreamableBatch(w http.ResponseWriter, r *http.Request, body json.RawMessage) {
-	var requests []MCPRequest
-	if err := json.Unmarshal(body, &requests); err != nil {
-		s.Logger.Error(err, "Failed to decode batch request")
-		http.Error(w, "Invalid batch JSON", http.StatusBadRequest)
-		return
-	}
 
-	// Check if all are notifications or responses
-	hasRequests := false
-	for _, req := range requests {
-		if req.ID != nil {
-			hasRequests = true
-			break
-		}
-	}
-
-	// If no requests (all notifications/responses), return 202 Accepted
-	if !hasRequests {
-		for _, req := range requests {
-			s.handleRequest(r.Context(), req)
-		}
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-
-	// Process batch and return responses
-	responses := make([]MCPResponse, 0, len(requests))
-	for _, req := range requests {
-		if req.ID == nil {
-			s.handleRequest(r.Context(), req) // Process notification
-			continue
-		}
-		response := s.handleRequest(r.Context(), req)
-		responses = append(responses, response)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(responses); err != nil {
-		s.Logger.Error(err, "Failed to encode batch response")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-}
 
 // handleStreamableGet handles GET requests (listening for server messages)
 func (s *Server) handleStreamableGet(w http.ResponseWriter, r *http.Request) {
@@ -278,62 +259,49 @@ func (s *Server) StartStdio(ctx context.Context) error {
 
 		s.Logger.V(1).Info("Received stdio request", "line", line)
 
-		// Handle both single requests and batches
+		// Handle single requests (batching no longer supported in MCP 2025-06-18)
 		s.handleStdioMessage(ctx, line)
 	}
 
 	return scanner.Err()
 }
 
-// handleStdioMessage handles both single and batch messages for stdio
+// handleStdioMessage handles single messages for stdio (batching no longer supported)
 func (s *Server) handleStdioMessage(ctx context.Context, line string) {
-	// Check if it's a batch (starts with '[') or single request
+	// MCP 2025-06-18: JSON-RPC batching is no longer supported
+	// Check if it's a batch request and reject it
 	if len(line) > 0 && line[0] == '[' {
-		// Handle batch
-		var requests []MCPRequest
-		if err := json.Unmarshal([]byte(line), &requests); err != nil {
-			s.Logger.Error(err, "Failed to parse stdio batch request")
-			return
+		s.Logger.Info("Rejected stdio batch request - batching not supported in MCP 2025-06-18")
+		// Send error response for batch requests
+		errorResponse := MCPResponse{
+			JSONRPC: "2.0",
+			Error: &MCPError{
+				Code:    -32600,
+				Message: "JSON-RPC batching is not supported",
+			},
+			ID: nil,
 		}
-
-		responses := make([]MCPResponse, 0, len(requests))
-		for _, req := range requests {
-			// Skip notifications (no ID)
-			if req.ID == nil {
-				s.handleRequest(ctx, req)
-				continue
-			}
-			response := s.handleRequest(ctx, req)
-			responses = append(responses, response)
-		}
-
-		// Output batch response
-		if len(responses) > 0 {
-			responseBytes, err := json.Marshal(responses)
-			if err != nil {
-				s.Logger.Error(err, "Failed to marshal stdio batch response")
-				return
-			}
-			fmt.Print(string(responseBytes))
-		}
-	} else {
-		// Handle single request
-		var req MCPRequest
-		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			s.Logger.Error(err, "Failed to parse stdio request")
-			return
-		}
-
-		response := s.handleRequest(ctx, req)
-		responseBytes, err := json.Marshal(response)
-		if err != nil {
-			s.Logger.Error(err, "Failed to marshal stdio response")
-			return
-		}
-
+		responseBytes, _ := json.Marshal(errorResponse)
 		fmt.Print(string(responseBytes))
-		s.Logger.V(1).Info("Sent stdio response", "response", string(responseBytes))
+		return
 	}
+
+	// Handle single request
+	var req MCPRequest
+	if err := json.Unmarshal([]byte(line), &req); err != nil {
+		s.Logger.Error(err, "Failed to parse stdio request")
+		return
+	}
+
+	response := s.handleRequest(ctx, req)
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		s.Logger.Error(err, "Failed to marshal stdio response")
+		return
+	}
+
+	fmt.Print(string(responseBytes))
+	s.Logger.V(1).Info("Sent stdio response", "response", string(responseBytes))
 }
 
 // handleHealth handles health check requests
@@ -391,6 +359,11 @@ func (s *Server) handleRequest(ctx context.Context, req MCPRequest) MCPResponse 
 		response := s.handleInitialize(req)
 		response.JSONRPC = jsonrpcVersion
 		return response
+	case "initialized":
+		// MCP 2025-06-18: Lifecycle operations are now mandatory
+		response := s.handleInitialized(req)
+		response.JSONRPC = jsonrpcVersion
+		return response
 	case "resources/list":
 		response := s.handleResourcesList(req)
 		response.JSONRPC = jsonrpcVersion
@@ -423,8 +396,8 @@ func (s *Server) handleInitialize(req MCPRequest) MCPResponse {
 		}
 	}
 
-	// Support both 2024-11-05 and 2025-03-26
-	supportedVersions := []string{"2024-11-05", "2025-03-26"}
+	// Support 2024-11-05, 2025-03-26, and 2025-06-18
+	supportedVersions := []string{"2024-11-05", "2025-03-26", "2025-06-18"}
 	negotiatedVersion := "2024-11-05" // Default to older for compatibility
 
 	for _, version := range supportedVersions {
@@ -464,10 +437,21 @@ func (s *Server) handleInitialize(req MCPRequest) MCPResponse {
 	}
 }
 
+// handleInitialized handles the initialized notification (MCP 2025-06-18 mandatory lifecycle)
+func (s *Server) handleInitialized(req MCPRequest) MCPResponse {
+	s.Logger.Info("Client initialization completed", "protocolVersion", s.protocolVersion)
+
+	// This is a notification, so we return an empty response
+	// The ID should be null for notifications
+	return MCPResponse{
+		ID: req.ID,
+	}
+}
+
 // handleMCPToolsList returns the list of available tools for MCP protocol
 func (s *Server) handleMCPToolsList(req MCPRequest) MCPResponse {
 	// Check if we should include annotations (2025-03-26 and later)
-	includeAnnotations := s.protocolVersion == "2025-03-26"
+	includeAnnotations := s.protocolVersion == "2025-03-26" || s.protocolVersion == "2025-06-18"
 
 	tools := []map[string]interface{}{
 		s.createToolDefinition("list_kubernetes_pods", "List Kubernetes pods in a namespace", map[string]interface{}{
