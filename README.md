@@ -9,11 +9,11 @@ A Kubernetes-native orchestration platform for Model Context Protocol (MCP) agen
 
 ## Overview
 
-MCP Conductor extends Kubernetes into an orchestration platform for AI agents. It provides a cloud-native foundation for deploying, managing, and scaling MCP-compatible agents across distributed environments, with native support for both MCP Protocol versions **2024-11-05** and **2025-03-26**.
+MCP Conductor extends Kubernetes into an orchestration platform for AI agents. It provides a cloud-native foundation for deploying, managing, and scaling MCP-compatible agents across distributed environments, with native support for MCP Protocol versions **2024-11-05**, **2025-03-26**, and **2025-06-18** (in development).
 
 ### Key Features
 
-- **Dual MCP Protocol Support**: Full compatibility with MCP 2024-11-05 and 2025-03-26
+- **Multi-Version MCP Protocol Support**: Full compatibility with MCP 2024-11-05, 2025-03-26, and 2025-06-18 (in development)
 - **Multi-Transport**: HTTP (Streamable HTTP) and stdio transports
 - **Kubernetes-Native**: Built on Custom Resource Definitions (CRDs)
 - **Domain-Specific Orchestration**: Organize agents by domain
@@ -25,15 +25,18 @@ MCP Conductor extends Kubernetes into an orchestration platform for AI agents. I
 
 ### MCP Protocol Support Matrix
 
-| Feature | MCP 2024-11-05 | MCP 2025-03-26 | Status |
-|---------|----------------|----------------|---------|
-| **Protocol Version** | Yes | Yes | Full Support |
-| **Tool Execution** | Yes | Yes | Full Support |
-| **Tool Annotations** | No | Yes | Conditional |
-| **JSON-RPC Batching** | Yes | Yes | Full Support |
-| **Streamable HTTP** | Yes | Yes | Recommended |
-| **stdio Transport** | Yes | Yes | Full Support |
-| **Completions** | Yes | Yes | Declared |
+| Feature | MCP 2024-11-05 | MCP 2025-03-26 | MCP 2025-06-18 | Status |
+|---------|----------------|----------------|----------------|---------|
+| **Protocol Version** | Yes | Yes | Planned | Full Support |
+| **Tool Execution** | Yes | Yes | Yes | Full Support |
+| **Tool Annotations** | No | Yes | Yes | Conditional |
+| **JSON-RPC Batching** | Yes | Yes | No | Deprecated in 2025-06-18 |
+| **Structured Tool Output** | No | No | Planned | New in 2025-06-18 |
+| **Resource Links** | No | No | Planned | New in 2025-06-18 |
+| **Elicitation** | No | No | Planned | New in 2025-06-18 |
+| **Streamable HTTP** | Yes | Yes | Yes | Recommended |
+| **stdio Transport** | Yes | Yes | Yes | Full Support |
+| **Completions** | Yes | Yes | Yes | Declared |
 
 ## Architecture
 
