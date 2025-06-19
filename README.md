@@ -9,20 +9,20 @@ A Kubernetes-native orchestration platform for Model Context Protocol (MCP) agen
 
 ## Overview
 
-MCP Conductor extends Kubernetes into an orchestration platform for AI agents. It provides a cloud-native foundation for deploying, managing, and scaling MCP-compatible agents across distributed environments, with complete native support for MCP Protocol versions **2024-11-05**, **2025-03-26**, and **2025-06-18**.
+MCP Conductor extends Kubernetes into an orchestration platform for AI agents. It provides a cloud-native foundation for deploying, managing, and scaling MCP-compatible agents across distributed environments, with native support for MCP Protocol versions **2024-11-05**, **2025-03-26**, and **2025-06-18**.
 
 ### Key Features
 
-- **Complete MCP Protocol Support**: Full compatibility with MCP 2024-11-05, 2025-03-26, and 2025-06-18
-- **Advanced MCP 2025-06-18 Features**: Output schemas, structured content, resource links, elicitation support
-- **Multi-Transport**: HTTP (Streamable HTTP) and stdio transports with automatic protocol negotiation
-- **Kubernetes-Native**: Built on Custom Resource Definitions (CRDs) with proper RBAC
-- **Domain-Specific Orchestration**: Organize agents by domain with intelligent task routing
+- **MCP Protocol Support**: Compatible with MCP 2024-11-05, 2025-03-26, and 2025-06-18
+- **Multi-Transport**: HTTP (Streamable HTTP) and stdio transports
+- **Kubernetes-Native**: Built on Custom Resource Definitions (CRDs)
+- **Domain-Specific Orchestration**: Organize agents by domain
 - **Multi-Language Agent Support**: Any language with Kubernetes client libraries
-- **Scalable Architecture**: Horizontal scaling with optimized performance
-- **Enhanced Error Handling**: Rich context, recovery suggestions, and validation (MCP 2025-06-18)
-- **Interactive Workflows**: Elicitation support for user input during execution (MCP 2025-06-18)
-- **Tool Annotations**: Enhanced AI understanding with comprehensive metadata
+- **Scalable Architecture**: Horizontal scaling with load balancing
+- **Tool Annotations**: Enhanced AI understanding (MCP 2025-03-26+)
+- **Output Schemas**: Structured tool definitions (MCP 2025-06-18)
+- **Enhanced Error Handling**: Detailed error context (MCP 2025-06-18)
+- **Elicitation Support**: Interactive user input (MCP 2025-06-18)
 
 ### MCP Protocol Support Matrix
 
@@ -87,18 +87,17 @@ MCP Conductor leverages Kubernetes primitives to eliminate the complexity of tra
 - **Operational Simplicity**: Use existing Kubernetes tooling for monitoring and debugging
 - **Event-Driven**: Kubernetes watch API provides real-time updates without polling
 
-### MCP 2025-06-18 Advanced Features
+### MCP 2025-06-18 Features
 
-MCP Conductor provides complete support for the latest MCP specification with advanced features:
+MCP Conductor supports the latest MCP specification features:
 
-- **🔧 Output Schemas**: Comprehensive schema definitions for all 9 tools enabling better validation and IDE integration
-- **📊 Structured Content**: Dual-format responses with both human-readable text and programmatic JSON data
-- **🔗 Resource Links**: Kubernetes resource URIs for seamless navigation between related resources
-- **✅ Input Validation**: Schema-based parameter validation with detailed error feedback (sub-100ms response)
-- **🚨 Enhanced Error Handling**: Rich context with timestamps, recovery suggestions, and debugging information
-- **💬 Elicitation Support**: Interactive user input during tool execution with multiple prompt types
-- **🔄 Protocol Negotiation**: Automatic feature enablement based on client protocol version
-- **⚡ Performance**: Optimized with <100ms validation and <5s task execution times
+- **Output Schemas**: Schema definitions for tool validation
+- **Structured Content**: Dual-format responses (text + JSON)
+- **Resource Links**: Kubernetes resource URIs
+- **Input Validation**: Parameter validation with error feedback
+- **Enhanced Error Handling**: Detailed error context and suggestions
+- **Elicitation Support**: Interactive user input during execution
+- **Protocol Negotiation**: Automatic feature detection
 
 ## Quick Start
 
