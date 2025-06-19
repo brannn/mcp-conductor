@@ -365,11 +365,18 @@ func (s *Server) handleRequest(ctx context.Context, req MCPRequest) MCPResponse 
 		response := s.handleInitialized(req)
 		response.JSONRPC = jsonrpcVersion
 		return response
-	case "elicitation/respond":
-		// MCP 2025-06-18: Elicitation support
-		response := s.handleElicitationRespond(ctx, req)
-		response.JSONRPC = jsonrpcVersion
-		return response
+	case "elicitation/create":
+		// MCP Draft: Elicitation support - servers send elicitation/create to clients
+		// Note: This should not be called in our server implementation
+		// as we are the server, not the client
+		return MCPResponse{
+			JSONRPC: jsonrpcVersion,
+			Error: &MCPError{
+				Code:    -32601,
+				Message: "elicitation/create is sent by servers to clients, not the reverse",
+			},
+			ID: req.ID,
+		}
 	case "resources/list":
 		response := s.handleResourcesList(req)
 		response.JSONRPC = jsonrpcVersion
@@ -454,63 +461,10 @@ func (s *Server) handleInitialized(req MCPRequest) MCPResponse {
 	}
 }
 
-// handleElicitationRespond handles user responses to elicitation requests (MCP 2025-06-18)
-func (s *Server) handleElicitationRespond(ctx context.Context, req MCPRequest) MCPResponse {
-	// Only available in MCP 2025-06-18
-	if s.protocolVersion != "2025-06-18" {
-		return MCPResponse{
-			Error: &MCPError{
-				Code:    -32601,
-				Message: "Elicitation is only supported in MCP 2025-06-18",
-			},
-			ID: req.ID,
-		}
-	}
-
-	// Parse elicitation response parameters
-	params := req.Params
-	if params == nil {
-		return MCPResponse{
-			Error: &MCPError{
-				Code:    -32602,
-				Message: "Missing elicitation response parameters",
-			},
-			ID: req.ID,
-		}
-	}
-
-	elicitationID, ok := params["elicitationId"].(string)
-	if !ok || elicitationID == "" {
-		return MCPResponse{
-			Error: &MCPError{
-				Code:    -32602,
-				Message: "Missing or invalid elicitationId",
-			},
-			ID: req.ID,
-		}
-	}
-
-	response, _ := params["response"].(string)
-	cancelled, _ := params["cancelled"].(bool)
-
-	// Update the task with the elicitation response
-	if err := s.updateTaskElicitationResponse(ctx, elicitationID, response, cancelled); err != nil {
-		return MCPResponse{
-			Error: &MCPError{
-				Code:    -32603,
-				Message: fmt.Sprintf("Failed to update elicitation response: %v", err),
-			},
-			ID: req.ID,
-		}
-	}
-
-	return MCPResponse{
-		Result: map[string]interface{}{
-			"success": true,
-		},
-		ID: req.ID,
-	}
-}
+// Note: Elicitation support removed - our understanding was incorrect.
+// According to MCP specification, servers send elicitation/create TO clients,
+// not the other way around. This requires a different implementation approach
+// that would need to be integrated into tool execution flows.
 
 // handleMCPToolsList returns the list of available tools for MCP protocol
 func (s *Server) handleMCPToolsList(req MCPRequest) MCPResponse {

@@ -22,7 +22,7 @@ MCP Conductor extends Kubernetes into an orchestration platform for AI agents. I
 - **Tool Annotations**: Enhanced AI understanding (MCP 2025-03-26+)
 - **Output Schemas**: Structured tool definitions (MCP 2025-06-18)
 - **Enhanced Error Handling**: Detailed error context (MCP 2025-06-18)
-- **Elicitation Support**: Interactive user input (MCP 2025-06-18)
+- **Elicitation Support**: Interactive user input (planned)
 
 ### MCP Protocol Support Matrix
 
@@ -36,7 +36,7 @@ MCP Conductor extends Kubernetes into an orchestration platform for AI agents. I
 | **Resource Links** | ❌ | ❌ | ✅ | **Complete** |
 | **Input Validation** | ❌ | ❌ | ✅ | **Complete** |
 | **Enhanced Error Handling** | ❌ | ❌ | ✅ | **Complete** |
-| **Elicitation Support** | ❌ | ❌ | ✅ | **Complete** |
+| **Elicitation Support** | ❌ | ❌ | ⚠️ | **Planned** |
 | **JSON-RPC Batching** | ✅ | ✅ | ❌ | Deprecated in 2025-06-18 |
 | **Streamable HTTP Transport** | ✅ | ✅ | ✅ | **Complete** |
 | **stdio Transport** | ✅ | ✅ | ✅ | **Complete** |
@@ -96,7 +96,7 @@ MCP Conductor supports the latest MCP specification features:
 - **Resource Links**: Kubernetes resource URIs
 - **Input Validation**: Parameter validation with error feedback
 - **Enhanced Error Handling**: Detailed error context and suggestions
-- **Elicitation Support**: Interactive user input during execution
+- **Elicitation Support**: Interactive user input during execution (planned)
 - **Protocol Negotiation**: Automatic feature detection
 
 ## Quick Start
